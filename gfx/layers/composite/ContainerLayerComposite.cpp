@@ -517,7 +517,8 @@ RenderMinimap(ContainerT* aContainer, LayerManagerComposite* aManager,
   gfx::Color displayPortColor(0, 1.f, 0);
   gfx::Color viewPortColor(0, 0, 1.f, 0.3f);
   gfx::Color approxVisibilityColor(1.f, 0, 0);
-  gfx::Color inDisplayPortVisibilityColor(1.f, 1.f, 0);
+  gfx::Color inDisplayPortVisibilityColor(1.f, 0, 1.f);
+  gfx::Color inViewportVisibilityColor(1.f, 1.f, 0);
 
   // Rects
   const FrameMetrics& fm = aLayer->GetFrameMetrics(0);
@@ -591,6 +592,11 @@ RenderMinimap(ContainerT* aContainer, LayerManagerComposite* aManager,
     CSSIntRegion* inDisplayPortVisibleRegion =
       aManager->GetVisibleRegion(VisibilityCounter::IN_DISPLAYPORT, guid);
     DrawRegion(inDisplayPortVisibleRegion, inDisplayPortVisibilityColor, rectPainter);
+
+    // Draw the in-viewport visible region.
+    CSSIntRegion* inViewportVisibleRegion =
+      aManager->GetVisibleRegion(VisibilityCounter::IN_VIEWPORT, guid);
+    DrawRegion(inViewportVisibleRegion, inViewportVisibilityColor, rectPainter);
   }
 
   // Render the displayport.

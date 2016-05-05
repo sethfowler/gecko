@@ -2088,10 +2088,21 @@ nsImageFrame::OnVisibilityChange(Visibility aOldVisibility,
   imageLoader->OnVisibilityChange(aOldVisibility, aNewVisibility,
                                   aNonvisibleAction);
 
-  if (aOldVisibility == Visibility::NONVISIBLE &&
-        (aNewVisibility == Visibility::MAY_BECOME_VISIBLE ||
-         aNewVisibility == Visibility::IN_DISPLAYPORT)) {
-    MaybeDecodeForPredictedSize();
+  switch (aNewVisibility) {
+    case Visibility::MAY_BECOME_VISIBLE:
+    case Visibility::IN_DISPLAYPORT:
+    case Visibility::IN_VIEWPORT:
+      if (aOldVisibility == Visibility::NONVISIBLE) {
+        MaybeDecodeForPredictedSize();
+      }
+      break;
+
+    case Visibility::NONVISIBLE:
+      break;
+
+    case Visibility::UNTRACKED:
+      MOZ_ASSERT_UNREACHABLE("Shouldn't notify for untracked visibility");
+      break;
   }
 
   nsAtomicContainerFrame::OnVisibilityChange(aOldVisibility, aNewVisibility,

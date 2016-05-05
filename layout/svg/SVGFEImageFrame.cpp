@@ -85,7 +85,7 @@ NS_IMPL_FRAMEARENA_HELPERS(SVGFEImageFrame)
 /* virtual */ void
 SVGFEImageFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
-  DecVisibilityCount(VisibilityCounter::IN_DISPLAYPORT);
+  DecVisibilityCount(VisibilityCounter::IN_VIEWPORT);
 
   nsCOMPtr<nsIImageLoadingContent> imageLoader =
     do_QueryInterface(nsFrame::mContent);
@@ -108,7 +108,7 @@ SVGFEImageFrame::Init(nsIContent*       aContent,
   nsFrame::Init(aContent, aParent, aPrevInFlow);
 
   // We assume that feImage's are always visible.
-  IncVisibilityCount(VisibilityCounter::IN_DISPLAYPORT);
+  IncVisibilityCount(VisibilityCounter::IN_VIEWPORT);
 
   nsCOMPtr<nsIImageLoadingContent> imageLoader =
     do_QueryInterface(nsFrame::mContent);

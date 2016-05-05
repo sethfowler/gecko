@@ -550,7 +550,7 @@ nsFrame::Init(nsIContent*       aContent,
 
     if (HasAnyStateBits(NS_FRAME_IN_POPUP) && TrackingVisibility()) {
       // Assume all frames in popups are visible.
-      IncVisibilityCount(VisibilityCounter::IN_DISPLAYPORT);
+      IncVisibilityCount(VisibilityCounter::IN_VIEWPORT);
     }
   }
   const nsStyleDisplay *disp = StyleDisplay();
@@ -603,7 +603,7 @@ nsFrame::Init(nsIContent*       aContent,
 
   if (PresContext()->PresShell()->AssumeAllFramesVisible() &&
       TrackingVisibility()) {
-    IncVisibilityCount(VisibilityCounter::IN_DISPLAYPORT);
+    IncVisibilityCount(VisibilityCounter::IN_VIEWPORT);
   }
 
   DidSetStyleContext(nullptr);
@@ -1505,7 +1505,7 @@ nsIFrame::UpdateVisibilitySynchronously()
   }
 
   if (presShell->AssumeAllFramesVisible()) {
-    presShell->MarkFrameVisible(this, VisibilityCounter::IN_DISPLAYPORT);
+    presShell->MarkFrameVisible(this, VisibilityCounter::IN_VIEWPORT);
     return;
   }
 
@@ -1546,7 +1546,7 @@ nsIFrame::UpdateVisibilitySynchronously()
   }
 
   if (visible) {
-    presShell->MarkFrameVisible(this, VisibilityCounter::IN_DISPLAYPORT);
+    presShell->MarkFrameVisible(this, VisibilityCounter::IN_VIEWPORT);
   } else {
     presShell->MarkFrameNonvisible(this);
   }
@@ -9283,7 +9283,7 @@ nsIFrame::AddInPopupStateBitToDescendants(nsIFrame* aFrame)
   if (!aFrame->HasAnyStateBits(NS_FRAME_IN_POPUP) &&
       aFrame->TrackingVisibility()) {
     // Assume all frames in popups are visible.
-    aFrame->IncVisibilityCount(VisibilityCounter::IN_DISPLAYPORT);
+    aFrame->IncVisibilityCount(VisibilityCounter::IN_VIEWPORT);
   }
 
   aFrame->AddStateBits(NS_FRAME_IN_POPUP);
@@ -9313,7 +9313,7 @@ nsIFrame::RemoveInPopupStateBitFromDescendants(nsIFrame* aFrame)
   if (aFrame->TrackingVisibility()) {
     // We assume all frames in popups are visible, so this decrement balances
     // out the increment in AddInPopupStateBitToDescendants above.
-    aFrame->DecVisibilityCount(VisibilityCounter::IN_DISPLAYPORT);
+    aFrame->DecVisibilityCount(VisibilityCounter::IN_VIEWPORT);
   }
 
   AutoTArray<nsIFrame::ChildList,4> childListArray;

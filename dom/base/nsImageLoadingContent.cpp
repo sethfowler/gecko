@@ -291,7 +291,7 @@ nsImageLoadingContent::OnUnlockedDraw()
     return;
   }
 
-  presShell->MarkFrameVisible(frame, VisibilityCounter::IN_DISPLAYPORT);
+  presShell->MarkFrameVisible(frame, VisibilityCounter::IN_VIEWPORT);
 }
 
 nsresult
@@ -1432,6 +1432,7 @@ nsImageLoadingContent::OnVisibilityChange(Visibility aOldVisibility,
   switch (aNewVisibility) {
     case Visibility::MAY_BECOME_VISIBLE:
     case Visibility::IN_DISPLAYPORT:
+    case Visibility::IN_VIEWPORT:
       if (aOldVisibility == Visibility::NONVISIBLE) {
         TrackImage(mCurrentRequest);
         TrackImage(mPendingRequest);

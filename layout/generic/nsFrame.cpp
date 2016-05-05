@@ -2753,6 +2753,20 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
     if (!displayPortIntersection.IsEmpty()) {
       nsIPresShell* shell = child->PresContext()->PresShell();
       shell->MarkFrameVisible(child, VisibilityCounter::IN_DISPLAYPORT);
+
+      // If the frame is in the critical displayport, it may also be in the
+      // viewport. A frame is considered to be IN_VIEWPORT if it's within the
+      // intersection of all ancestor scrollports, which is what
+      // GetScrollPortConsideringAncestors() returns.
+      nsRect viewportIntersection =
+        nsLayoutUtils::TransformAndIntersectRect(child,
+                                                 child->GetVisualOverflowRect(),
+                                                 aBuilder->GetCurrentScrollParent(),
+                                                 aBuilder->GetScrollPortConsideringAncestors());
+
+      if (!viewportIntersection.IsEmpty()) {
+        shell->MarkFrameVisible(child, VisibilityCounter::IN_VIEWPORT);
+      }
     }
   }
 

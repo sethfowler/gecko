@@ -2694,7 +2694,7 @@ ScrollFrameHelper::ScrollToImpl(nsPoint aPt, const nsRect& aRange, nsIAtom* aOri
     return;
   }
 
-  bool needFrameVisibilityUpdate = mLastUpdateFramesPos == nsPoint(-1,-1);
+  bool needApproxFrameVisibilityUpdate = mLastUpdateFramesPos == nsPoint(-1,-1);
 
   nsPoint dist(std::abs(pt.x - mLastUpdateFramesPos.x),
                std::abs(pt.y - mLastUpdateFramesPos.y));
@@ -2704,7 +2704,7 @@ ScrollFrameHelper::ScrollToImpl(nsPoint aPt, const nsRect& aRange, nsIAtom* aOri
   nscoord vertAllowance = std::max(scrollPortSize.height / std::max(sVertScrollFraction, 1),
                                    nsPresContext::AppUnitsPerCSSPixel());
   if (dist.x >= horzAllowance || dist.y >= vertAllowance) {
-    needFrameVisibilityUpdate = true;
+    needApproxFrameVisibilityUpdate = true;
   }
 
   // notify the listeners.
@@ -2779,9 +2779,17 @@ ScrollFrameHelper::ScrollToImpl(nsPoint aPt, const nsRect& aRange, nsIAtom* aOri
   if (schedulePaint) {
     mOuter->SchedulePaint();
 
-    if (needFrameVisibilityUpdate) {
+    if (needApproxFrameVisibilityUpdate) {
+      // XXX(seth): This should probably be using Soon() rather than Now().
       presContext->PresShell()->ScheduleApproximateFrameVisibilityUpdateNow();
     }
+  } else {
+    // We update IN_DISPLAYPORT and IN_VIEWPORT visibility whenever we paint,
+    // but since we're not scheduling a paint we'll just schedule an IN_VIEWPORT
+    // visibility update directly.  Note that if code elsewhere causes us to
+    // repaint on the next tick, it's ok; the refresh driver will automatically
+    // suppress the visibility update.
+    presContext->RefreshDriver()->ScheduleInViewportFrameVisibilityUpdate();
   }
 
   if (mOuter->ChildrenHavePerspective()) {

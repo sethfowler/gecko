@@ -38,9 +38,13 @@ enum class Visibility : uint8_t
   // This frame was within the displayport as of the last paint. That doesn't
   // necessarily mean that the frame is visible - it may still lie outside the
   // viewport - but it does mean that the user may scroll the frame into view
-  // asynchronously at any time (due to APZ), so for most purposes such a frame
-  // should be treated as truly visible.
-  IN_DISPLAYPORT
+  // asynchronously at any time (due to APZ).
+  IN_DISPLAYPORT,
+
+  // This frame was within the viewport as of the last paint or APZ scroll
+  // event. Modulo occlusion, this frame is definitely onscreen and visible to
+  // the user.
+  IN_VIEWPORT
 };
 
 // The subset of the states in @Visibility which have a per-frame counter. This
@@ -48,7 +52,8 @@ enum class Visibility : uint8_t
 enum class VisibilityCounter : uint8_t
 {
   MAY_BECOME_VISIBLE,
-  IN_DISPLAYPORT
+  IN_DISPLAYPORT,
+  IN_VIEWPORT
 };
 
 // Requested actions when frames transition to the nonvisible state.

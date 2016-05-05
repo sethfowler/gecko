@@ -1467,6 +1467,9 @@ nsIFrame::GetCrossDocChildLists(nsTArray<ChildList>* aLists)
 static Visibility
 VisibilityStateAsVisibility(const nsIFrame::VisibilityState& aState)
 {
+  if (aState.mInViewportCounter > 0) {
+    return Visibility::IN_VIEWPORT;     // Takes priority over IN_DISPLAYPORT.
+  }
   if (aState.mInDisplayPortCounter > 0) {
     return Visibility::IN_DISPLAYPORT;  // Takes priority over MAY_BECOME_VISIBLE.
   }
@@ -1564,7 +1567,7 @@ nsIFrame::EnableVisibilityTracking()
   // Add the state bit so we know to track visibility for this frame, and
   // initialize the frame property.
   AddStateBits(NS_FRAME_VISIBILITY_IS_TRACKED);
-  props.Set(VisibilityStateProperty(), VisibilityState{0, 0});
+  props.Set(VisibilityStateProperty(), VisibilityState{0, 0, 0});
 
   nsIPresShell* presShell = PresContext()->PresShell();
   if (!presShell) {
@@ -1619,13 +1622,22 @@ nsIFrame::DecVisibilityCount(VisibilityCounter aCounter,
                 state.mApproximateCounter > 0);
   MOZ_ASSERT_IF(aCounter == VisibilityCounter::IN_DISPLAYPORT,
                 state.mInDisplayPortCounter > 0);
+  MOZ_ASSERT_IF(aCounter == VisibilityCounter::IN_VIEWPORT,
+                state.mInViewportCounter > 0);
 
   Visibility previousVisibility = VisibilityStateAsVisibility(state);
 
-  if (aCounter == VisibilityCounter::MAY_BECOME_VISIBLE) {
-    state.mApproximateCounter--;
-  } else {
-    state.mInDisplayPortCounter--;
+  switch (aCounter)
+  {
+    case VisibilityCounter::MAY_BECOME_VISIBLE:
+      state.mApproximateCounter--;
+      break;
+    case VisibilityCounter::IN_DISPLAYPORT:
+      state.mInDisplayPortCounter--;
+      break;
+    case VisibilityCounter::IN_VIEWPORT:
+      state.mInViewportCounter--;
+      break;
   }
 
   props.Set(VisibilityStateProperty(), state);
@@ -1653,10 +1665,17 @@ nsIFrame::IncVisibilityCount(VisibilityCounter aCounter)
 
   Visibility previousVisibility = VisibilityStateAsVisibility(state);
 
-  if (aCounter == VisibilityCounter::MAY_BECOME_VISIBLE) {
-    state.mApproximateCounter++;
-  } else {
-    state.mInDisplayPortCounter++;
+  switch (aCounter)
+  {
+    case VisibilityCounter::MAY_BECOME_VISIBLE:
+      state.mApproximateCounter++;
+      break;
+    case VisibilityCounter::IN_DISPLAYPORT:
+      state.mInDisplayPortCounter++;
+      break;
+    case VisibilityCounter::IN_VIEWPORT:
+      state.mInViewportCounter++;
+      break;
   }
 
   props.Set(VisibilityStateProperty(), state);

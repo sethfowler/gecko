@@ -1107,13 +1107,14 @@ public:
   /// for the possible return values and their meanings.
   Visibility GetVisibility() const;
 
-  /// @return true if this frame is either in the displayport now or may
-  /// become visible soon.
+  /// @return true if this frame is either in the viewport now, in the
+  /// displayport now, or may become visible soon.
   bool IsVisibleOrMayBecomeVisibleSoon() const
   {
     Visibility visibility = GetVisibility();
     return visibility == Visibility::MAY_BECOME_VISIBLE ||
-           visibility == Visibility::IN_DISPLAYPORT;
+           visibility == Visibility::IN_DISPLAYPORT ||
+           visibility == Visibility::IN_VIEWPORT;
   }
 
   /// Update the visibility state of this frame synchronously.
@@ -1127,7 +1128,8 @@ public:
   struct VisibilityState
   {
     unsigned int mApproximateCounter : 16;
-    unsigned int mInDisplayPortCounter : 16;
+    unsigned int mInDisplayPortCounter : 8;
+    unsigned int mInViewportCounter : 8;
   };
 
   // A frame property which stores the visibility state of this frame, which

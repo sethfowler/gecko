@@ -402,8 +402,7 @@ public:
   void UpdateInViewportFrameVisibilitySync() override;
 
   void RebuildApproximateFrameVisibilityDisplayList(const nsDisplayList& aList) override;
-  void RebuildApproximateFrameVisibility(nsRect* aRect = nullptr,
-                                         bool aRemoveOnly = false) override;
+  void RebuildApproximateFrameVisibility(nsRect* aRect = nullptr) override;
 
   void MarkFrameVisible(nsIFrame* aFrame, VisibilityCounter aCounter) override;
   void MarkFrameNonvisible(nsIFrame* aFrame) override;
@@ -768,14 +767,12 @@ protected:
   //////////////////////////////////////////////////////////////////////////////
 
   void UpdateApproximateFrameVisibility();
-  void DoUpdateApproximateFrameVisibility(bool aRemoveOnly);
+  void MarkFramesInSubtreeApproximatelyVisible(nsIFrame* aFrame,
+                                               const nsRect& aRect);
+  static void MarkFramesInListApproximatelyVisible(const nsDisplayList& aList);
 
   void ClearVisibleFramesSets(Maybe<OnNonvisible> aNonvisibleAction = Nothing());
   static void ClearVisibleFramesForUnvisitedPresShells(nsView* aView, bool aClear);
-  static void MarkFramesInListApproximatelyVisible(const nsDisplayList& aList);
-  void MarkFramesInSubtreeApproximatelyVisible(nsIFrame* aFrame,
-                                               const nsRect& aRect,
-                                               bool aRemoveOnly = false);
   void UpdateFrameVisibilityOnActiveStateChange();
 
   void InitVisibleRegionsIfVisualizationEnabled(VisibilityCounter aForCounter);

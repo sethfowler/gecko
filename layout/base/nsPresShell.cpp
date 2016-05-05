@@ -6056,14 +6056,11 @@ PresShell::ClearVisibleFramesSets(Maybe<OnNonvisible> aNonvisibleAction
 
 void
 PresShell::MarkFramesInSubtreeApproximatelyVisible(nsIFrame* aFrame,
-                                                   const nsRect& aRect,
-                                                   bool aRemoveOnly /* = false */)
+                                                   const nsRect& aRect)
 {
   MOZ_ASSERT(aFrame->PresContext()->PresShell() == this, "wrong presshell");
 
-  if (aFrame->TrackingVisibility() &&
-      aFrame->StyleVisibility()->IsVisible() &&
-      (!aRemoveOnly || aFrame->IsVisibleOrMayBecomeVisibleSoon())) {
+  if (aFrame->TrackingVisibility() && aFrame->StyleVisibility()->IsVisible()) {
     MOZ_ASSERT(!AssumeAllFramesVisible());
     mVisibleFrames.AddFrame(aFrame, VisibilityCounter::MAY_BECOME_VISIBLE);
     AddFrameToVisibleRegions(aFrame, VisibilityCounter::MAY_BECOME_VISIBLE);
@@ -6141,8 +6138,7 @@ PresShell::MarkFramesInSubtreeApproximatelyVisible(nsIFrame* aFrame,
 }
 
 void
-PresShell::RebuildApproximateFrameVisibility(nsRect* aRect,
-                                             bool aRemoveOnly /* = false */)
+PresShell::RebuildApproximateFrameVisibility(nsRect* aRect)
 {
   MOZ_ASSERT(!mApproximateFrameVisibilityVisited, "already visited?");
   mApproximateFrameVisibilityVisited = true;
@@ -6159,17 +6155,11 @@ PresShell::RebuildApproximateFrameVisibility(nsRect* aRect,
     vis = *aRect;
   }
 
-  MarkFramesInSubtreeApproximatelyVisible(rootFrame, vis, aRemoveOnly);
+  MarkFramesInSubtreeApproximatelyVisible(rootFrame, vis);
 }
 
 void
 PresShell::UpdateApproximateFrameVisibility()
-{
-  DoUpdateApproximateFrameVisibility(/* aRemoveOnly = */ false);
-}
-
-void
-PresShell::DoUpdateApproximateFrameVisibility(bool aRemoveOnly)
 {
   MOZ_ASSERT(!mPresContext || mPresContext->IsRootContentDocument(),
              "Updating approximate frame visibility on a non-root content document?");
@@ -6187,7 +6177,7 @@ PresShell::DoUpdateApproximateFrameVisibility(bool aRemoveOnly)
     return;
   }
 
-  RebuildApproximateFrameVisibility(/* aRect = */ nullptr, aRemoveOnly);
+  RebuildApproximateFrameVisibility(/* aRect = */ nullptr);
   ClearVisibleFramesForUnvisitedPresShells(rootFrame->GetView(), true);
 
 #ifdef DEBUG_FRAME_VISIBILITY_DISPLAY_LIST
@@ -10031,8 +10021,15 @@ PresShell::Observe(nsISupports* aSubject,
   }
 
   if (!nsCRT::strcmp(aTopic, "memory-pressure")) {
-    if (!AssumeAllFramesVisible() && mPresContext->IsRootContentDocument()) {
-      DoUpdateApproximateFrameVisibility(/* aRemoveOnly = */ true);
+    if (!AssumeAllFramesVisible()) {
+      // Do an empty update for the MAY_BECOME_VISIBLE and IN_DISPLAYPORT
+      // visible frame sets, which will clear them. This leaves only
+      // IN_VIEWPORT frames - i.e., frames which are visible to the user
+      // *right now*.
+      AutoUpdateVisibility update(this, {
+        VisibilityCounter::MAY_BECOME_VISIBLE,
+        VisibilityCounter::IN_DISPLAYPORT
+      }, Some(OnNonvisible::DISCARD_IMAGES));
     }
     return NS_OK;
   }

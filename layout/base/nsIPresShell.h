@@ -1596,8 +1596,7 @@ public:
   /// Clears the current list of approximately visible frames on this pres shell
   /// and replaces it with frames that are in the display list @aList.
   virtual void RebuildApproximateFrameVisibilityDisplayList(const nsDisplayList& aList) = 0;
-  virtual void RebuildApproximateFrameVisibility(nsRect* aRect = nullptr,
-                                                 bool aRemoveOnly = false) = 0;
+  virtual void RebuildApproximateFrameVisibility(nsRect* aRect = nullptr) = 0;
 
   /// Adds @aFrame to the visible frames set specified by @aCounter.
   /// VisibilityCounter::MAY_BECOME_VISIBLE is not a valid argument.

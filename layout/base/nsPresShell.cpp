@@ -4628,6 +4628,11 @@ PresShell::NotifyCompositorOfVisibleRegionsChange()
                           mVisibleRegions->mInDisplayPort,
                           VisibilityCounter::IN_DISPLAYPORT,
                           layersId, presShellId);
+
+  SendUpdateVisibleRegion(compositorChild,
+                          mVisibleRegions->mInViewport,
+                          VisibilityCounter::IN_VIEWPORT,
+                          layersId, presShellId);
 }
 
 template <typename Func> void
@@ -4719,6 +4724,9 @@ PresShell::VisibleFramesContainer::SuppressVisibility()
   ForAllTrackedFramesInVisibleSet(mInDisplayPort, [&](nsIFrame* aFrame) {
     aFrame->DecVisibilityCount(VisibilityCounter::IN_DISPLAYPORT);
   });
+  ForAllTrackedFramesInVisibleSet(mInViewport, [&](nsIFrame* aFrame) {
+    aFrame->DecVisibilityCount(VisibilityCounter::IN_VIEWPORT);
+  });
 }
 
 void
@@ -4735,6 +4743,9 @@ PresShell::VisibleFramesContainer::UnsuppressVisibility()
   // increment the counters for the frames in our sets - this is the normal
   // state, in other words. See SuppressVisibility() for why we increment in
   // this order - the same reasoning applies, but in reverse.
+  ForAllTrackedFramesInVisibleSet(mInViewport, [&](nsIFrame* aFrame) {
+    aFrame->IncVisibilityCount(VisibilityCounter::IN_VIEWPORT);
+  });
   ForAllTrackedFramesInVisibleSet(mInDisplayPort, [&](nsIFrame* aFrame) {
     aFrame->IncVisibilityCount(VisibilityCounter::IN_DISPLAYPORT);
   });
@@ -5890,6 +5901,7 @@ struct MOZ_STACK_CLASS AutoUpdateVisibility
     if (mPresShell->mVisibleFrames.IsVisibilitySuppressed()) {
       mPresShell->mVisibleFrames.mApproximate.Clear();
       mPresShell->mVisibleFrames.mInDisplayPort.Clear();
+      mPresShell->mVisibleFrames.mInViewport.Clear();
       mPresShell->mVisibleRegions = nullptr;
       return;
     }
@@ -5908,6 +5920,11 @@ struct MOZ_STACK_CLASS AutoUpdateVisibility
         case VisibilityCounter::IN_DISPLAYPORT:
           mOldInDisplayPortFrames.emplace();
           mPresShell->mVisibleFrames.mInDisplayPort.SwapElements(*mOldInDisplayPortFrames);
+          break;
+
+        case VisibilityCounter::IN_VIEWPORT:
+          mOldInViewportFrames.emplace();
+          mPresShell->mVisibleFrames.mInViewport.SwapElements(*mOldInViewportFrames);
           break;
       }
     }
@@ -5959,6 +5976,12 @@ struct MOZ_STACK_CLASS AutoUpdateVisibility
                                    mNonvisibleAction);
       });
     }
+    if (mOldInViewportFrames) {
+      ForAllTrackedFramesInVisibleSet(*mOldInViewportFrames, [&](nsIFrame* aFrame) {
+        aFrame->DecVisibilityCount(VisibilityCounter::IN_VIEWPORT,
+                                   mNonvisibleAction);
+      });
+    }
 
     // If we're not visualizing visible regions, we're done.
     if (!mPresShell->mVisibleRegions) {
@@ -5985,6 +6008,7 @@ struct MOZ_STACK_CLASS AutoUpdateVisibility
 private:
   Maybe<VisibleFrames> mOldApproximatelyVisibleFrames;
   Maybe<VisibleFrames> mOldInDisplayPortFrames;
+  Maybe<VisibleFrames> mOldInViewportFrames;
   Maybe<OnNonvisible> mNonvisibleAction;
   PresShell* mPresShell;
   Notify mNotifyStrategy;
@@ -6025,7 +6049,8 @@ PresShell::ClearVisibleFramesSets(Maybe<OnNonvisible> aNonvisibleAction
   // regions.
   AutoUpdateVisibility update(this, {
     VisibilityCounter::MAY_BECOME_VISIBLE,
-    VisibilityCounter::IN_DISPLAYPORT
+    VisibilityCounter::IN_DISPLAYPORT,
+    VisibilityCounter::IN_VIEWPORT
   }, aNonvisibleAction);
 }
 
@@ -6262,7 +6287,7 @@ PresShell::ScheduleApproximateFrameVisibilityUpdateSoon()
   }
 
   // Ask the refresh driver to update frame visibility soon.
-  refreshDriver->ScheduleFrameVisibilityUpdate();
+  refreshDriver->ScheduleApproximateFrameVisibilityUpdate();
 }
 
 void
@@ -6297,6 +6322,82 @@ PresShell::ScheduleApproximateFrameVisibilityUpdateNow()
   }
 }
 
+static bool
+FrameIsWithinViewport(nsIFrame* aFrame)
+{
+  nsIFrame* frame = aFrame;
+  nsRect rectRelativeToFrame = frame->GetVisualOverflowRect();
+  nsIScrollableFrame* enclosingScrollableFrame =
+    nsLayoutUtils::GetAsyncScrollableProperAncestorFrame(frame);
+
+  // Walk up the sequence of scrollable frames all the way to the root frame.
+  // As we go, we take the intersection of all of the enclosing scrollports
+  // (up to the viewport itself) with |aFrame|'s rect. If the intersection is
+  // non-empty, the frame is visible.
+  while (enclosingScrollableFrame) {
+    nsIFrame* enclosingScrollableFrameAsFrame =
+      do_QueryFrame(enclosingScrollableFrame);
+    MOZ_ASSERT(enclosingScrollableFrame);
+
+    nsRect viewportIntersection =
+      nsLayoutUtils::TransformAndIntersectRect(frame,
+                                               rectRelativeToFrame,
+                                               enclosingScrollableFrameAsFrame,
+                                               enclosingScrollableFrame->GetScrollPortRect());
+    if (viewportIntersection.IsEmpty()) {
+      return false;
+    }
+
+    frame = enclosingScrollableFrameAsFrame;
+    rectRelativeToFrame = viewportIntersection;
+    enclosingScrollableFrame =
+      nsLayoutUtils::GetAsyncScrollableProperAncestorFrame(frame);
+  }
+
+  return true;
+}
+
+void
+PresShell::UpdateInViewportFrameVisibilitySync()
+{
+  if (!mDocument) {
+    ClearVisibleFramesSets(Some(OnNonvisible::DISCARD_IMAGES));
+    return;
+  }
+
+  // Start walking over our document and its subdocuments and updating
+  // in-viewport frame visibility.
+  mDocument->EnumerateSelfAndSubDocumentsWith([](nsIDocument* aDocument) {
+    PresShell* presShell = static_cast<PresShell*>(aDocument->GetShell());
+    if (!presShell) {
+      return true;
+    }
+
+    if (presShell->AssumeAllFramesVisible() ||
+        presShell->mHaveShutDown || presShell->mIsDestroying) {
+      return true;
+    }
+
+    AutoUpdateVisibility update(presShell, { VisibilityCounter::IN_VIEWPORT });
+
+    // This method is only called when there's a scroll event small enough that
+    // it doesn't trigger a paint. This means that we know that any newly
+    // visible frame must be within the displayport, so those are the only
+    // frames we have to check.
+    VisibleFrames& inDisplayPortFrames = presShell->mVisibleFrames.mInDisplayPort;
+    for (auto iter = inDisplayPortFrames.ConstIter(); !iter.Done(); iter.Next()) {
+      nsIFrame* frame = iter.Get()->GetKey();
+
+      if (FrameIsWithinViewport(frame)) {
+        presShell->mVisibleFrames.AddFrame(frame, VisibilityCounter::IN_VIEWPORT);
+        presShell->AddFrameToVisibleRegions(frame, VisibilityCounter::IN_VIEWPORT);
+      }
+    }
+
+    return true;
+  });
+}
+
 void
 PresShell::MarkFrameVisible(nsIFrame* aFrame, VisibilityCounter aCounter)
 {
@@ -6308,9 +6409,9 @@ PresShell::MarkFrameVisible(nsIFrame* aFrame, VisibilityCounter aCounter)
   }
 
   if (AssumeAllFramesVisible()) {
-    // Force to maximum visibility (IN_DISPLAYPORT) regardless of aCounter's value.
-    if (aFrame->GetVisibility() != Visibility::IN_DISPLAYPORT) {
-      aFrame->IncVisibilityCount(VisibilityCounter::IN_DISPLAYPORT);
+    // Force to maximum visibility (IN_VIEWPORT) regardless of aCounter's value.
+    if (aFrame->GetVisibility() != Visibility::IN_VIEWPORT) {
+      aFrame->IncVisibilityCount(VisibilityCounter::IN_VIEWPORT);
     }
     return;
   }
@@ -6345,11 +6446,14 @@ PresShell::MarkFrameNonvisible(nsIFrame* aFrame)
                "Shouldn't have any frames in the approximate visibility set");
     MOZ_ASSERT(mVisibleFrames.mInDisplayPort.Count() == 0,
                "Shouldn't have any frames in the in-displayport visibility set");
+    MOZ_ASSERT(mVisibleFrames.mInViewport.Count() == 0,
+               "Shouldn't have any frames in the in-viewport visibility set");
     return;
   }
 
   mVisibleFrames.RemoveFrame(aFrame, VisibilityCounter::MAY_BECOME_VISIBLE);
   mVisibleFrames.RemoveFrame(aFrame, VisibilityCounter::IN_DISPLAYPORT);
+  mVisibleFrames.RemoveFrame(aFrame, VisibilityCounter::IN_VIEWPORT);
 }
 
 class nsAutoNotifyDidPaint
@@ -6539,7 +6643,8 @@ PresShell::Paint(nsView*        aViewToPaint,
 
   if (frame) {
     AutoUpdateVisibility update(this, AutoUpdateVisibility::Notify::eAsync, {
-      VisibilityCounter::IN_DISPLAYPORT
+      VisibilityCounter::IN_DISPLAYPORT,
+      VisibilityCounter::IN_VIEWPORT
     });
 
     // We can paint directly into the widget using its layer manager.

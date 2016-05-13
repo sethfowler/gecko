@@ -1588,6 +1588,11 @@ public:
   /// this variation ignores the refresh driver's heuristics.
   virtual void ScheduleApproximateFrameVisibilityUpdateNow() = 0;
 
+  /// Update the set of in-viewport visible frames synchronously. This is
+  /// necessary when processing scroll events that do not cause a paint. Only
+  /// frames that are already in-displayport visible are considered.
+  virtual void UpdateInViewportFrameVisibilitySync() = 0;
+
   /// Clears the current list of approximately visible frames on this pres shell
   /// and replaces it with frames that are in the display list @aList.
   virtual void RebuildApproximateFrameVisibilityDisplayList(const nsDisplayList& aList) = 0;

@@ -1015,7 +1015,8 @@ nsRefreshDriver::nsRefreshDriver(nsPresContext* aPresContext)
                                      GetThrottledTimerInterval())),
     mMinRecomputeVisibilityInterval(GetMinRecomputeVisibilityInterval()),
     mThrottled(false),
-    mNeedToRecomputeVisibility(false),
+    mNeedToRecomputeApproxFrameVisibility(false),
+    mNeedToRecomputeInViewportFrameVisibility(false),
     mTestControllingRefreshes(false),
     mViewManagerFlushIsPending(false),
     mRequestedHighPrecision(false),
@@ -1749,7 +1750,7 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
           }
           NS_RELEASE(shell);
 
-          mNeedToRecomputeVisibility = true;
+          mNeedToRecomputeApproxFrameVisibility = true;
         }
 
 
@@ -1792,7 +1793,7 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
         }
         NS_RELEASE(shell);
 
-        mNeedToRecomputeVisibility = true;
+        mNeedToRecomputeApproxFrameVisibility = true;
       }
 
       if (tracingLayoutFlush) {
@@ -1809,11 +1810,11 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
 
   // Recompute approximate frame visibility if it's necessary and enough time
   // has passed since the last time we did it.
-  if (mNeedToRecomputeVisibility && !mThrottled &&
+  if (mNeedToRecomputeApproxFrameVisibility && !mThrottled &&
       aNowTime >= mNextRecomputeVisibilityTick &&
       !presShell->IsPaintingSuppressed()) {
     mNextRecomputeVisibilityTick = aNowTime + mMinRecomputeVisibilityInterval;
-    mNeedToRecomputeVisibility = false;
+    mNeedToRecomputeApproxFrameVisibility = false;
 
     presShell->ScheduleApproximateFrameVisibilityUpdateNow();
   }
@@ -1880,6 +1881,10 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
   mPresShellsToInvalidateIfHidden.Clear();
 
   if (mViewManagerFlushIsPending) {
+    // Painting implicitly recomputes IN_DISPLAYPORT and IN_VIEWPORT frame
+    // visibility, so we don't need to do it again later.
+    mNeedToRecomputeInViewportFrameVisibility = false;
+
     RefPtr<TimelineConsumers> timelines = TimelineConsumers::Get();
 
     nsTArray<nsDocShell*> profilingDocShells;
@@ -1923,6 +1928,12 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
 #ifndef ANDROID  /* bug 1142079 */
   mozilla::Telemetry::AccumulateTimeDelta(mozilla::Telemetry::REFRESH_DRIVER_TICK, mTickStart);
 #endif
+
+  if (mNeedToRecomputeInViewportFrameVisibility && !mThrottled &&
+      !presShell->IsPaintingSuppressed()) {
+    mNeedToRecomputeInViewportFrameVisibility = false;
+    presShell->UpdateInViewportFrameVisibilitySync();
+  }
 
   nsTObserverArray<nsAPostRefreshObserver*>::ForwardIterator iter(mPostRefreshObservers);
   while (iter.HasMore()) {

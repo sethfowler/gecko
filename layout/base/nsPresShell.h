@@ -399,6 +399,7 @@ public:
 
   void ScheduleApproximateFrameVisibilityUpdateSoon() override;
   void ScheduleApproximateFrameVisibilityUpdateNow() override;
+  void UpdateInViewportFrameVisibilitySync() override;
 
   void RebuildApproximateFrameVisibilityDisplayList(const nsDisplayList& aList) override;
   void RebuildApproximateFrameVisibility(nsRect* aRect = nullptr,
@@ -801,6 +802,7 @@ protected:
       {
         case VisibilityCounter::MAY_BECOME_VISIBLE: return mApproximate;
         case VisibilityCounter::IN_DISPLAYPORT:     return mInDisplayPort;
+        case VisibilityCounter::IN_VIEWPORT:        return mInViewport;
       }
       MOZ_CRASH();
     }
@@ -811,6 +813,10 @@ protected:
 
     // A set of frames that were visible in the displayport the last time we painted.
     VisibleFrames mInDisplayPort;
+
+    // A set of frames that were visible in the viewport the last time we
+    // painted or got an APZ scroll event.
+    VisibleFrames mInViewport;
 
     bool mSuppressingVisibility;
   };
@@ -825,6 +831,7 @@ protected:
       {
         case VisibilityCounter::MAY_BECOME_VISIBLE: return mApproximate;
         case VisibilityCounter::IN_DISPLAYPORT:     return mInDisplayPort;
+        case VisibilityCounter::IN_VIEWPORT:        return mInViewport;
       }
       MOZ_CRASH();
     }
@@ -835,6 +842,10 @@ protected:
 
     // The in-displayport visible regions calculated during the last paint.
     VisibleRegions mInDisplayPort;
+
+    // The in-viewport visible regions calculated during the last paint or APZ
+    // scroll event.
+    VisibleRegions mInViewport;
   };
 
   // The most recent visible regions we've computed. Only non-null if the APZ

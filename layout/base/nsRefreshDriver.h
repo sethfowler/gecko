@@ -238,10 +238,24 @@ public:
   void CancelPendingEvents(nsIDocument* aDocument);
 
   /**
-   * Schedule a frame visibility update "soon", subject to the heuristics and
-   * throttling we apply to visibility updates.
+   * Schedule an approximate frame visibility update "soon", subject to the
+   * heuristics and rate limiting we apply to visibility updates.
    */
-  void ScheduleFrameVisibilityUpdate() { mNeedToRecomputeVisibility = true; }
+  void ScheduleApproximateFrameVisibilityUpdate()
+  {
+    mNeedToRecomputeApproxFrameVisibility = true;
+  }
+
+  /**
+   * Schedule an in-viewport frame visibility update. Unlike approximate frame
+   * visibility updates, these are not subject to rate limiting, but we won't do
+   * a separate update if we paint on the next tick, since painting implicitly
+   * updates in-viewport frame visibility.
+   */
+  void ScheduleInViewportFrameVisibilityUpdate()
+  {
+    mNeedToRecomputeInViewportFrameVisibility = true;
+  }
 
   /**
    * Tell the refresh driver that it is done driving refreshes and
@@ -409,7 +423,8 @@ private:
   const mozilla::TimeDuration mMinRecomputeVisibilityInterval;
 
   bool mThrottled;
-  bool mNeedToRecomputeVisibility;
+  bool mNeedToRecomputeApproxFrameVisibility;
+  bool mNeedToRecomputeInViewportFrameVisibility;
   bool mTestControllingRefreshes;
   bool mViewManagerFlushIsPending;
   bool mRequestedHighPrecision;

@@ -1554,6 +1554,32 @@ public:
   typedef bool (*nsSubDocEnumFunc)(nsIDocument *aDocument, void *aData);
   virtual void EnumerateSubDocuments(nsSubDocEnumFunc aCallback,
                                      void *aData) = 0;
+  /**
+   * Enumerate all subdocuments using a lambda function.
+   * The lambda should return true to continue enumerating, or false to stop.
+   * It will never get passed a null document.
+   */
+  template <typename Func>
+  void EnumerateSubDocumentsWith(Func aFunc)
+  {
+    auto adaptor = [](nsIDocument* aDocument, void* aData) -> bool {
+      Func* func = reinterpret_cast<Func*>(aData);
+      return (*func)(aDocument);
+    };
+    EnumerateSubDocuments(adaptor, &aFunc);
+  }
+
+  /**
+   * Like EnumerateSubDocumentsWith(), but includes this document.
+   */
+  template <typename Func>
+  void EnumerateSelfAndSubDocumentsWith(Func aFunc)
+  {
+    if (!aFunc(this)) {
+      return;
+    }
+    EnumerateSubDocumentsWith(aFunc);
+  }
 
   /**
    * Check whether it is safe to cache the presentation of this document
